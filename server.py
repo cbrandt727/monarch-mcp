@@ -518,6 +518,19 @@ def track_usage(func: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
 mcp = FastMCP("monarch-money")
 
 
+# Read-only mode (fork addition).
+# When MONARCH_READ_ONLY is truthy, write tools are not registered at all, so they're
+# invisible to the client and cannot be invoked. Flip to write mode by unsetting the env var.
+READ_ONLY = os.environ.get("MONARCH_READ_ONLY", "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def write_tool(*args, **kwargs):
+    """Like ``@mcp.tool`` but a no-op (skips registration) when READ_ONLY is set."""
+    if READ_ONLY:
+        return lambda func: func
+    return mcp.tool(*args, **kwargs)
+
+
 # =============================================================================
 # Structured output models
 #
@@ -1571,7 +1584,7 @@ async def get_transaction_categories(verbose: bool = False) -> CategoriesResult:
     return CategoriesResult(categories=category_list, count=len(category_list), verbose=verbose)
 
 
-@mcp.tool(annotations=WRITE_CREATE, title="Create Transaction")
+@write_tool(annotations=WRITE_CREATE, title="Create Transaction")
 @track_usage
 async def create_transaction(
     amount: float,
@@ -1642,7 +1655,7 @@ async def create_transaction(
         raise
 
 
-@mcp.tool(annotations=WRITE_IDEMPOTENT, title="Update Transaction")
+@write_tool(annotations=WRITE_IDEMPOTENT, title="Update Transaction")
 @track_usage
 async def update_transaction(
     transaction_id: str,
@@ -1759,7 +1772,7 @@ async def update_transaction(
         raise
 
 
-@mcp.tool(annotations=WRITE_IDEMPOTENT, title="Bulk Update Transactions")
+@write_tool(annotations=WRITE_IDEMPOTENT, title="Bulk Update Transactions")
 @track_usage
 async def update_transactions_bulk(updates: str) -> BulkUpdateResult:
     """Update multiple transactions in a single call to save round-trips.
@@ -1949,7 +1962,7 @@ async def get_recurring_transactions() -> RecurringResult:
         raise
 
 
-@mcp.tool(annotations=WRITE_IDEMPOTENT, title="Set Budget Amount")
+@write_tool(annotations=WRITE_IDEMPOTENT, title="Set Budget Amount")
 @track_usage
 async def set_budget_amount(category_id: str, amount: float) -> SetBudgetResult:
     """Set budget amount for a category."""
@@ -1965,7 +1978,7 @@ async def set_budget_amount(category_id: str, amount: float) -> SetBudgetResult:
         raise
 
 
-@mcp.tool(annotations=WRITE_CREATE, title="Create Manual Account")
+@write_tool(annotations=WRITE_CREATE, title="Create Manual Account")
 @track_usage
 async def create_manual_account(account_name: str, account_type: str, balance: float) -> CreateAccountResult:
     """Create a manually tracked account."""
@@ -2082,7 +2095,7 @@ async def get_spending_summary(
         raise
 
 
-@mcp.tool(annotations=WRITE_SIDE_EFFECT, title="Refresh Accounts")
+@write_tool(annotations=WRITE_SIDE_EFFECT, title="Refresh Accounts")
 @track_usage
 async def refresh_accounts() -> RefreshResult:
     """Request a refresh of all account data from financial institutions."""
